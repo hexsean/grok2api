@@ -329,6 +329,11 @@ td.table-empty {
   color: var(--fg);
 }
 
+.app-build-version {
+  margin-left: 8px;
+  opacity: 0.75;
+}
+
 .stat-card {
   background: #fff;
   border: 1px solid transparent;

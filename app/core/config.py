@@ -364,15 +364,19 @@ class Config:
         Args:
             force: 是否强制回源刷新
         """
-        if not force and self._reload_interval_sec > 0 and self._last_loaded_at > 0:
-            if time.monotonic() - self._last_loaded_at < self._reload_interval_sec:
-                return
-
-        async with self._get_reload_lock():
+        try:
             if not force and self._reload_interval_sec > 0 and self._last_loaded_at > 0:
                 if time.monotonic() - self._last_loaded_at < self._reload_interval_sec:
                     return
-            await self.load()
+
+            async with self._get_reload_lock():
+                if not force and self._reload_interval_sec > 0 and self._last_loaded_at > 0:
+                    if time.monotonic() - self._last_loaded_at < self._reload_interval_sec:
+                        return
+                await self.load()
+        except Exception as e:
+            # Never break request flow on config refresh path.
+            logger.exception(f"Skip config reload due to transient error: {e}")
 
     def get(self, key: str, default: Any = None) -> Any:
         """
