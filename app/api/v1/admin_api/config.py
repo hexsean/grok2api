@@ -18,6 +18,7 @@ async def admin_verify():
 @router.get("/config", dependencies=[Depends(verify_app_key)])
 async def get_config():
     """获取当前配置"""
+    await config.maybe_reload(force=True)
     # 暴露原始配置字典
     return config._config
 

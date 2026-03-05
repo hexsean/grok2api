@@ -8,6 +8,9 @@
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict
+import asyncio
+import os
+import time
 import tomllib
 
 from app.core.logger import logger
@@ -244,6 +247,11 @@ class Config:
         self._defaults = {}
         self._code_defaults = {}
         self._defaults_loaded = False
+        self._reload_lock = asyncio.Lock()
+        self._last_loaded_at = 0.0
+        self._reload_interval_sec = max(
+            0.0, float(os.getenv("CONFIG_RELOAD_INTERVAL_SEC", "3"))
+        )
 
     def register_defaults(self, defaults: Dict[str, Any]):
         """注册代码中定义的默认值"""
@@ -259,6 +267,7 @@ class Config:
 
     async def load(self):
         """显式加载配置"""
+        previous_config = deepcopy(self._config)
         try:
             from app.core.storage import get_storage, LocalStorage
 
@@ -330,9 +339,29 @@ class Config:
                 )
 
             self._config = merged
+            self._last_loaded_at = time.monotonic()
         except Exception as e:
             logger.error(f"Error loading config: {e}")
-            self._config = {}
+            # Keep last known-good config on transient storage failures.
+            if previous_config:
+                self._config = previous_config
+
+    async def maybe_reload(self, force: bool = False):
+        """
+        按需刷新配置（默认带最小刷新间隔，避免每次请求都回源）。
+
+        Args:
+            force: 是否强制回源刷新
+        """
+        if not force and self._reload_interval_sec > 0 and self._last_loaded_at > 0:
+            if time.monotonic() - self._last_loaded_at < self._reload_interval_sec:
+                return
+
+        async with self._reload_lock:
+            if not force and self._reload_interval_sec > 0 and self._last_loaded_at > 0:
+                if time.monotonic() - self._last_loaded_at < self._reload_interval_sec:
+                    return
+            await self.load()
 
     def get(self, key: str, default: Any = None) -> Any:
         """

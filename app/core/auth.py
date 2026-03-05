@@ -7,7 +7,7 @@ from typing import Optional, Iterable
 from fastapi import HTTPException, status, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from app.core.config import get_config
+from app.core.config import get_config, config
 
 DEFAULT_API_KEY = ""
 DEFAULT_APP_KEY = "grok2api"
@@ -104,6 +104,7 @@ async def verify_api_key(
 
     如果 config.toml 中未配置 api_key，则不启用认证。
     """
+    await config.maybe_reload()
     api_key = get_admin_api_key()
     api_keys = _normalize_api_keys(api_key)
     if not api_keys:
@@ -135,6 +136,7 @@ async def verify_app_key(
 
     app_key 必须配置，否则拒绝登录。
     """
+    await config.maybe_reload()
     app_key = get_app_key()
 
     if not app_key:
@@ -169,6 +171,7 @@ async def verify_public_key(
 
     默认不公开，需配置 public_key 才能访问；若开启 public_enabled 且未配置 public_key，则放开访问。
     """
+    await config.maybe_reload()
     public_key = get_public_api_key()
     public_enabled = is_public_enabled()
 
