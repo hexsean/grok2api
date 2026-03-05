@@ -247,11 +247,22 @@ class Config:
         self._defaults = {}
         self._code_defaults = {}
         self._defaults_loaded = False
-        self._reload_lock = asyncio.Lock()
+        self._reload_lock = None
+        self._reload_lock_loop_id = None
         self._last_loaded_at = 0.0
-        self._reload_interval_sec = max(
-            0.0, float(os.getenv("CONFIG_RELOAD_INTERVAL_SEC", "3"))
-        )
+        try:
+            interval = float(os.getenv("CONFIG_RELOAD_INTERVAL_SEC", "3"))
+        except (TypeError, ValueError):
+            interval = 3.0
+        self._reload_interval_sec = max(0.0, interval)
+
+    def _get_reload_lock(self):
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+        if self._reload_lock is None or self._reload_lock_loop_id != loop_id:
+            self._reload_lock = asyncio.Lock()
+            self._reload_lock_loop_id = loop_id
+        return self._reload_lock
 
     def register_defaults(self, defaults: Dict[str, Any]):
         """注册代码中定义的默认值"""
@@ -357,7 +368,7 @@ class Config:
             if time.monotonic() - self._last_loaded_at < self._reload_interval_sec:
                 return
 
-        async with self._reload_lock:
+        async with self._get_reload_lock():
             if not force and self._reload_interval_sec > 0 and self._last_loaded_at > 0:
                 if time.monotonic() - self._last_loaded_at < self._reload_interval_sec:
                     return
