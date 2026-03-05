@@ -13,7 +13,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
-APP_DIR = BASE_DIR / "app"
 
 # Ensure the project root is on sys.path (helps when Vercel sets a different CWD)
 if str(BASE_DIR) not in sys.path:
@@ -42,6 +41,7 @@ from app.api.v1.admin_api import router as admin_router
 from app.api.v1.public_api import router as public_router
 from app.api.pages import router as pages_router
 from fastapi.staticfiles import StaticFiles
+from app.core.static_paths import find_static_dir
 
 # 初始化日志
 setup_logging(
@@ -148,9 +148,11 @@ def create_app() -> FastAPI:
     app.include_router(files_router, prefix="/v1/files")
 
     # 静态文件服务
-    static_dir = APP_DIR / "static"
-    if static_dir.exists():
+    static_dir = find_static_dir()
+    if static_dir:
         app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    else:
+        logger.warning("Static directory not found, /static route disabled.")
 
     # 注册管理与公共路由
     app.include_router(admin_router, prefix="/v1/admin")
